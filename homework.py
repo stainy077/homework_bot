@@ -1,15 +1,12 @@
-from http import HTTPStatus
-from urllib3.exceptions import HTTPError
 import logging
 import os
-import requests
 import time
+from http import HTTPStatus
 
+import requests
 from dotenv import load_dotenv
-
-# from logging.handlers import RotatingFileHandler
-
 from telegram import Bot
+from urllib3.exceptions import HTTPError
 
 load_dotenv()
 
@@ -17,8 +14,6 @@ PRACTICUM_TOKEN = os.environ.get('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
-# RETRY_TIME = 5
-# ERROR_RETRY = 5
 RETRY_TIME = 600
 ERROR_RETRY = 30
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -35,9 +30,6 @@ logging.basicConfig(
     filename='bot_log.log',
     filemode='a',
 )
-# logger = logging.getLogger(__name__)
-# handler = RotatingFileHandler('bot_log.log', maxBytes=50000000, backupCount=5)
-# logger.addHandler(handler)
 
 
 def send_message(bot, message):
@@ -88,7 +80,10 @@ def check_response(response):
 def parse_status(homework):
     """Извлекает из информации о конкретной домашней работе её статус."""
     if 'homework_name' in homework:
-        homework_name = homework.get('homework_name', '«Название домашней работы»')
+        homework_name = homework.get(
+            'homework_name',
+            '«Название домашней работы»',
+        )
     else:
         raise KeyError('Отсутствует название домашней работы в словаре!')
     homework_status = homework.get('status', 'empty_status')
@@ -114,8 +109,8 @@ def main():
         logging.critical('Отсутствует обязательная переменная окружения!!!')
         raise AttributeError('Не определён токен или номер чата!')
     bot = Bot(token=TELEGRAM_TOKEN)
-    current_timestamp = '0000000000'
-    # current_timestamp = int(time.time())
+    # current_timestamp = '0000000000'
+    current_timestamp = int(time.time())
     logging.debug('Бот запущен')
     bot.send_message(TELEGRAM_CHAT_ID, 'Бот запущен')
     previos_hw_status = ''
@@ -132,7 +127,10 @@ def main():
             else:
                 logging.debug('Отсутствие в ответе новых статусов!')
                 raise Exception('Отсутствие в ответе новых статусов!')
-            current_timestamp = homework_statuses.get('current_date', current_timestamp)
+            current_timestamp = homework_statuses.get(
+                'current_date',
+                current_timestamp,
+            )
             time.sleep(RETRY_TIME)
 
         except Exception as error:
