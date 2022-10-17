@@ -44,24 +44,22 @@ def send_message(bot, message):
 def get_api_answer(current_timestamp):
     """Запрос к эндпоинту API-сервиса. Возвращает ответ API."""
     timestamp = current_timestamp or int(time.time())
-    headers = HEADERS
     params = {'from_date': timestamp}
     homework_statuses = None
     try:
         homework_statuses = requests.get(
             ENDPOINT,
-            headers=headers,
+            headers=HEADERS,
             params=params,
         )
     except Exception as error:
         logging.error(f'Недоступность API-сервиса! {error}')
-    if homework_statuses:
-        status = homework_statuses.status_code
-        if status != HTTPStatus.OK:
-            raise HTTPError(f'Недоступность API-сервиса! HTTPStatus: {status}')
-        logging.info('Получен ответ от API-сервиса')
-        return homework_statuses.json()
-    raise ValueError('список домашних работ не сформирован!')
+        raise HTTPError(f'Недоступность API-сервиса! {error}')
+    status = homework_statuses.status_code
+    if status != HTTPStatus.OK:
+        raise HTTPError(f'Недоступность API-сервиса! HTTPStatus: {status}')
+    logging.info('Получен ответ от API-сервиса')
+    return homework_statuses.json()
 
 
 def check_response(response):
@@ -79,13 +77,9 @@ def check_response(response):
 
 def parse_status(homework):
     """Извлекает из информации о конкретной домашней работе её статус."""
-    if 'homework_name' in homework:
-        homework_name = homework.get(
-            'homework_name',
-            '«Название домашней работы»',
-        )
-    else:
+    if 'homework_name' not in homework:
         raise KeyError('Отсутствует название домашней работы в словаре!')
+    homework_name = homework.get('homework_name', '«Название домашней работы»')
     homework_status = homework.get('status', 'empty_status')
     if homework_status not in HOMEWORK_STATUSES:
         status_text = f'Неизвестный статус: {homework_status}'
@@ -98,9 +92,9 @@ def parse_status(homework):
 
 def check_tokens():
     """Проверяет доступность необходимых переменных окружения."""
-    if not PRACTICUM_TOKEN or not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-        return False
-    return True
+    if all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]):
+        return True
+    return False
 
 
 def main():
@@ -109,37 +103,34 @@ def main():
         logging.critical('Отсутствует обязательная переменная окружения!!!')
         raise AttributeError('Не определён токен или номер чата!')
     bot = Bot(token=TELEGRAM_TOKEN)
-    # current_timestamp = '0000000000'
     current_timestamp = int(time.time())
     logging.debug('Бот запущен')
     bot.send_message(TELEGRAM_CHAT_ID, 'Бот запущен')
-    previos_hw_status = ''
-    previos_error = ''
+    previos_message = ''
+    message = ''
+    sleep_time = RETRY_TIME
 
     while True:
         try:
             homework_statuses = get_api_answer(current_timestamp)
             homework = check_response(homework_statuses)
             message = parse_status(homework)
-            if message != previos_hw_status:
-                send_message(bot, message)
-                previos_hw_status = message
-            else:
-                logging.debug('Отсутствие в ответе новых статусов!')
-                raise Exception('Отсутствие в ответе новых статусов!')
             current_timestamp = homework_statuses.get(
                 'current_date',
                 current_timestamp,
             )
-            time.sleep(RETRY_TIME)
-
         except Exception as error:
-            error_message = f'Сбой в работе программы: {error}'
-            if error_message != previos_error:
-                bot.send_message(TELEGRAM_CHAT_ID, error_message)
-                previos_error = error_message
-            logging.error(error_message)
-            time.sleep(ERROR_RETRY)
+            message = f'Сбой в работе программы: {error}'
+            sleep_time = ERROR_RETRY
+        finally:
+            if message != previos_message:
+                send_message(bot, message)
+                previos_message = message
+                logging.debug(f'Текст статуса/ошибки: {message}')
+            else:
+                logging.debug('Отсутствие в ответе новых статусов!')
+                raise Exception('Отсутствие в ответе новых статусов!')
+            time.sleep(sleep_time)
 
 
 if __name__ == '__main__':
