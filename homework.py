@@ -32,6 +32,12 @@ logging.basicConfig(
 )
 
 
+class ConnectionError(Exception):
+    """Класс ошибки подключения к API."""
+
+    pass
+
+
 def send_message(bot, message):
     """Отправляет сообщение в Telegram чат."""
     logging.info('Сообщение о статусе домашки отправлено в Telegram-чат')
@@ -54,7 +60,7 @@ def get_api_answer(current_timestamp):
         )
     except Exception as error:
         logging.error(f'Недоступность API-сервиса! {error}')
-        raise HTTPError(f'Недоступность API-сервиса! {error}')
+        raise ConnectionError(f'Недоступность API-сервиса! {error}')
     status = homework_statuses.status_code
     if status != HTTPStatus.OK:
         raise HTTPError(f'Недоступность API-сервиса! HTTPStatus: {status}')
@@ -92,9 +98,7 @@ def parse_status(homework):
 
 def check_tokens():
     """Проверяет доступность необходимых переменных окружения."""
-    if all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]):
-        return True
-    return False
+    return all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID])
 
 
 def main():
@@ -129,7 +133,6 @@ def main():
                 logging.debug(f'Текст статуса/ошибки: {message}')
             else:
                 logging.debug('Отсутствие в ответе новых статусов!')
-                raise Exception('Отсутствие в ответе новых статусов!')
             time.sleep(sleep_time)
 
 
